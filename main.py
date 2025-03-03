@@ -506,7 +506,8 @@ def main():
         with col2b:
             # Usa l'URL specifico della certificazione se disponibile, altrimenti quello predefinito
             agent_url = st.session_state.cert_config.get('ai_agent_url', config.get('default_ai_agent_url', ""))
-            st.button("Chiedi all'Agent AI", on_click=lambda: webbrowser.open_new(agent_url), use_container_width=True)
+            # Sostituito il pulsante con un link HTML che si apre in una nuova scheda
+            st.markdown(f"<a href='{agent_url}' target='_blank'><button style='background-color:#7E57C2; color:white; border:none; border-radius:4px; padding:10px; width:100%; cursor:pointer;'>Chiedi all'Agent AI</button></a>", unsafe_allow_html=True)
 
     if st.session_state.show_guide:
         guide_content = load_markdown_content(config['guide_path'])
@@ -583,10 +584,11 @@ def main():
                 
                 # Usa l'URL specifico della certificazione per il link nella spiegazione
                 agent_url = st.session_state.cert_config.get('ai_agent_url', config.get('default_ai_agent_url', ""))
-                st.write(f"Ancora dubbi? [Chiedi all'Agent AI]({agent_url})")
+                # Modificato per usare st.markdown invece di st.write per garantire la compatibilità
+                st.markdown(f"Ancora dubbi? <a href='{agent_url}' target='_blank'>Chiedi all'Agent AI</a>", unsafe_allow_html=True)
 
                 if pd.notna(st.session_state.current_question['Link']):
-                    st.markdown(f"[Link alla domanda]({st.session_state.current_question['Link']})")
+                    st.markdown(f"<a href='{st.session_state.current_question['Link']}' target='_blank'>Link alla domanda</a>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
