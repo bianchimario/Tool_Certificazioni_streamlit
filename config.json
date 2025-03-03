@@ -1,5 +1,6 @@
 {
     "ai_agent_url": "https://neurons.reply.com/chat?agentId=01JN605ZMFGFQKEFAVEBQC0Q8W",
     "guide_path": "README.md",
-    "data_path": "data"
+    "data_path": "https://trrtfpsawe.blob.core.windows.net/materiale-certificazioni?sp=racwlmeop&st=2025-03-03T14:52:13Z&se=2028-07-20T21:52:13Z&sv=2022-11-02&sr=c&sig=4IodC6IBP5T2KLEKCpiJjG2i0PZlQ3mxiAwh1wg4UBg%3D",
+    "container_name": "materiale-certificazioni"
 }
