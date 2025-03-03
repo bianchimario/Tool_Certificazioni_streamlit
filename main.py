@@ -499,15 +499,37 @@ def main():
     with col2:
         col2a, col2b = st.columns(2)
         with col2a:
+            # Pulsante standard di Streamlit per la guida
             guide_button_text = "Chiudi la Guida" if st.session_state.show_guide else "Guida all'utilizzo"
             if st.button(guide_button_text, use_container_width=True, key="guide_button"):
                 st.session_state.show_guide = not st.session_state.show_guide
                 st.rerun()
+                
         with col2b:
             # Usa l'URL specifico della certificazione se disponibile, altrimenti quello predefinito
             agent_url = st.session_state.cert_config.get('ai_agent_url', config.get('default_ai_agent_url', ""))
-            # Sostituito il pulsante con un link HTML che si apre in una nuova scheda
-            st.markdown(f"<a href='{agent_url}' target='_blank'><button style='background-color:#7E57C2; color:white; border:none; border-radius:4px; padding:10px; width:100%; cursor:pointer;'>Chiedi all'Agent AI</button></a>", unsafe_allow_html=True)
+            # Pulsante HTML stilizzato per assomigliare ai pulsanti Streamlit
+            st.markdown(f"""
+            <a href='{agent_url}' target='_blank'>
+                <button style='
+                    background-color: #7E57C2; 
+                    color: white; 
+                    border: none; 
+                    border-radius: 4px; 
+                    padding: 0.5rem 1rem; 
+                    font-size: 0.875rem; 
+                    line-height: 1.6; 
+                    width: 100%; 
+                    font-weight: 400; 
+                    display: inline-flex; 
+                    align-items: center; 
+                    justify-content: center; 
+                    cursor: pointer;
+                '>
+                    Chiedi all'Agent AI
+                </button>
+            </a>
+            """, unsafe_allow_html=True)
 
     if st.session_state.show_guide:
         guide_content = load_markdown_content(config['guide_path'])
