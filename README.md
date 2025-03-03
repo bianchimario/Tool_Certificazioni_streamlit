@@ -5,8 +5,70 @@
 -----
 
 
-# Utilizzare TRR Tool Certificazioni [da completare]
-[da completare, spiegare come rispondere]
+# Utilizzare TRR Tool Certificazioni
+# Guida alla formattazione delle risposte
+
+## Regole generali
+- **Case insensitive**: Le risposte sono case insensitive, quindi non fa differenza tra maiuscolo e minuscolo (es. "a" è equivalente ad "A").
+
+## Tipi di domande e formattazione delle risposte
+
+### 1. Selezione multipla (singola risposta)
+Per domande con una sola risposta corretta, inserire la lettera corrispondente all'opzione scelta:
+- Esempio: "A" o "B" o "C", ecc.
+
+### 2. Selezione multipla (più risposte)
+Per domande che richiedono di selezionare più opzioni corrette allo stesso livello, inserire le lettere corrispondenti **in ordine alfabetico**:
+- Esempio: "Quali risposte sono vere?" → "ADE" (selezionando le opzioni A, D ed E)
+
+### 3. Multirisposta con box separati
+Per domande con più box di risposta separati, inserire le lettere nell'ordine in cui appaiono i box:
+- Esempio: "BAC" significa che hai selezionato la seconda opzione (B) per il primo box, la prima opzione (A) per il secondo box, e la terza opzione (C) per il terzo box.
+
+### 4. Ordinamento di elementi
+Per domande che richiedono di ordinare degli elementi, inserire le lettere nell'ordine corretto:
+- Esempio: "BADC" significa che l'elemento in posizione B va eseguito per primo, seguito dall'elemento in posizione A, poi da D e infine da C.
+- Se la prima operazione da eseguire è in seconda posizione, mettere B come prima lettera della risposta.
+
+### 5. Domande Vero/Falso (True/False)
+Per una serie di affermazioni da valutare come vere o false, utilizzare "Y" per le affermazioni vere e "N" per quelle false:
+- Esempio: "TFTF" significa che la prima affermazione è vera (T), la seconda è falsa (F), la terza è vera (T) e la quarta è falsa (F).
+
+## Esempi pratici
+
+**Domanda tipo 1**: Qual è la capitale dell'Italia?
+- A) Milano
+- B) Roma
+- C) Napoli
+- **Risposta corretta**: B
+
+**Domanda tipo 2**: Quali sono linguaggi di programmazione? (seleziona tutte le risposte corrette)
+- A) Python
+- B) Excel
+- C) Java
+- D) Word
+- E) JavaScript
+- **Risposta corretta**: ACE
+
+**Domanda tipo 3**: Abbina ciascun paese con la sua capitale
+- Box 1: Italia → A) Madrid, B) Roma, C) Parigi
+- Box 2: Francia → A) Parigi, B) Berlino, C) Londra
+- Box 3: Germania → A) Amsterdam, B) Vienna, C) Berlino
+- **Risposta corretta**: BAC
+
+**Domanda tipo 4**: Ordina le seguenti operazioni per creare un database
+- A) Definire le tabelle
+- B) Analizzare i requisiti
+- C) Implementare le query
+- D) Definire le relazioni
+- **Risposta corretta**: BADC (prima B, poi A, poi D, infine C)
+
+**Domanda tipo 5**: Indica se le seguenti affermazioni sono vere o false
+- A) L'acqua bolle a 100°C a livello del mare
+- B) La Terra è piatta
+- C) Python è un linguaggio di programmazione
+- D) HTML è un linguaggio di programmazione
+- **Risposta corretta**: TFTF (A è vera, B è falsa, C è vera, D è falsa)
 
 -----
 
