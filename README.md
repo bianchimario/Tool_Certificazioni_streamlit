@@ -6,7 +6,6 @@
 
 
 # Utilizzare TRR Tool Certificazioni
-# Guida alla formattazione delle risposte
 
 ## Regole generali
 - **Case insensitive**: Le risposte sono case insensitive, quindi non fa differenza tra maiuscolo e minuscolo (es. "a" è equivalente ad "A").
