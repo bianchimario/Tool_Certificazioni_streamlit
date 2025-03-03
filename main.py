@@ -118,6 +118,46 @@ class CertificationQuizApp:
             print(f"Errore nell'estrazione del nome del container: {e}")
             return None
 
+    def load_cert_config(self, cert_name):
+        """
+        Carica la configurazione specifica per una certificazione.
+        Se non trovata, usa i valori di default.
+        """
+        default_config = {
+            "ai_agent_url": config.get('default_ai_agent_url', "")  # Usa quello globale come fallback
+        }
+        
+        if self.blob_service_client and self.container_name:
+            try:
+                # Percorso del file di configurazione nel blob storage
+                config_path = f"data/{cert_name}/config.json"
+                print(f"Cercando config per certificazione: {config_path}")
+                
+                # Ottieni il client del container
+                container_client = self.blob_service_client.get_container_client(self.container_name)
+                blob_client = container_client.get_blob_client(config_path)
+                
+                try:
+                    # Verifica se il blob esiste
+                    blob_client.get_blob_properties()
+                    
+                    # Scarica il contenuto del blob
+                    download_stream = blob_client.download_blob()
+                    content = download_stream.readall()
+                    
+                    # Carica il JSON
+                    cert_config = json.loads(content.decode('utf-8'))
+                    
+                    # Aggiorna il dizionario di default con i valori trovati
+                    default_config.update(cert_config)
+                    print(f"Configurazione caricata per {cert_name}: {cert_config}")
+                except Exception as e:
+                    print(f"File di configurazione non trovato per {cert_name}, uso i valori di default: {e}")
+            except Exception as e:
+                print(f"Errore nel caricamento della configurazione da Azure: {e}")
+        
+        return default_config
+
     def get_available_certifications(self):
         """
         Recupera l'elenco delle certificazioni disponibili, sia da una fonte locale che remota.
@@ -418,6 +458,8 @@ def main():
         st.session_state.current_topic = None
     if 'show_guide' not in st.session_state:
         st.session_state.show_guide = False
+    if 'cert_config' not in st.session_state:
+        st.session_state.cert_config = {}
 
     st.title("TRR Tool Certificazioni")
 
@@ -436,6 +478,9 @@ def main():
                 app.reset_score()
                 st.session_state.current_cert = cert
                 st.session_state.current_topic = None
+                
+                # Carica la configurazione specifica della certificazione
+                st.session_state.cert_config = app.load_cert_config(cert)
             
             # Mostra un messaggio durante il caricamento
             with st.spinner(f"Caricamento della certificazione {cert}..."):
@@ -459,7 +504,9 @@ def main():
                 st.session_state.show_guide = not st.session_state.show_guide
                 st.rerun()
         with col2b:
-            st.button("Chiedi all'Agent AI", on_click=lambda: webbrowser.open_new(config['ai_agent_url']), use_container_width=True)
+            # Usa l'URL specifico della certificazione se disponibile, altrimenti quello predefinito
+            agent_url = st.session_state.cert_config.get('ai_agent_url', config.get('default_ai_agent_url', ""))
+            st.button("Chiedi all'Agent AI", on_click=lambda: webbrowser.open_new(agent_url), use_container_width=True)
 
     if st.session_state.show_guide:
         guide_content = load_markdown_content(config['guide_path'])
@@ -533,7 +580,10 @@ def main():
                     st.error(f"Risposta errata. La risposta corretta era {st.session_state.current_question['Risposta Esatta']}")
                 
                 st.write(f"**Spiegazione**: {st.session_state.current_question['Commento']}")
-                st.write(f"Ancora dubbi? [Chiedi all'Agent AI]({config['ai_agent_url']})")
+                
+                # Usa l'URL specifico della certificazione per il link nella spiegazione
+                agent_url = st.session_state.cert_config.get('ai_agent_url', config.get('default_ai_agent_url', ""))
+                st.write(f"Ancora dubbi? [Chiedi all'Agent AI]({agent_url})")
 
                 if pd.notna(st.session_state.current_question['Link']):
                     st.markdown(f"[Link alla domanda]({st.session_state.current_question['Link']})")
