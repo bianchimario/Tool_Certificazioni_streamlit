@@ -6,7 +6,7 @@
 
 
 # Utilizzare TRR Tool Certificazioni [da completare]
-[da completare]
+[da completare, spiegare come rispondere]
 
 -----
 
