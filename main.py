@@ -515,7 +515,7 @@ def main():
                     background-color: #7E57C2; 
                     color: white; 
                     border: none; 
-                    border-radius: 4px; 
+                    border-radius: 8px; 
                     padding: 0.5rem 1rem; 
                     font-size: 0.875rem; 
                     line-height: 1.6; 
