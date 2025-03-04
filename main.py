@@ -74,7 +74,6 @@ class CertificationQuizApp:
             self.blob_service_client = self._create_blob_service_client()
             if not self.container_name:
                 self.container_name = self._extract_container_name()
-            print(f"Inizializzato client Azure con container: {self.container_name}")
         else:
             self.blob_service_client = None
             self.container_name = None
@@ -95,12 +94,9 @@ class CertificationQuizApp:
             # Estrai il token SAS (la parte dopo il ?)
             sas_token = parts[1]
             
-            print(f"Creazione client blob con: URL={base_url}, SAS={sas_token[:10]}...")
-            
             # Crea il client usando l'URL di base e il token SAS
             return BlobServiceClient(account_url=base_url, credential=f"?{sas_token}")
         except Exception as e:
-            print(f"Errore nella creazione del client Blob: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -112,10 +108,8 @@ class CertificationQuizApp:
         try:
             url_without_params = self.data_path.split('?')[0]
             container_name = url_without_params.split('/')[-1]
-            print(f"Nome container estratto: {container_name}")
             return container_name
         except Exception as e:
-            print(f"Errore nell'estrazione del nome del container: {e}")
             return None
 
     def load_cert_config(self, cert_name):
@@ -131,7 +125,6 @@ class CertificationQuizApp:
             try:
                 # Percorso del file di configurazione nel blob storage
                 config_path = f"data/{cert_name}/config.json"
-                print(f"Cercando config per certificazione: {config_path}")
                 
                 # Ottieni il client del container
                 container_client = self.blob_service_client.get_container_client(self.container_name)
@@ -150,11 +143,10 @@ class CertificationQuizApp:
                     
                     # Aggiorna il dizionario di default con i valori trovati
                     default_config.update(cert_config)
-                    print(f"Configurazione caricata per {cert_name}: {cert_config}")
                 except Exception as e:
-                    print(f"File di configurazione non trovato per {cert_name}, uso i valori di default: {e}")
+                    pass
             except Exception as e:
-                print(f"Errore nel caricamento della configurazione da Azure: {e}")
+                pass
         
         return default_config
 
@@ -174,19 +166,11 @@ class CertificationQuizApp:
         Recupera l'elenco delle certificazioni da Azure Blob Storage.
         """
         try:
-            print(f"Recupero certificazioni da Azure - Container: {self.container_name}")
-            
             # Ottieni il client del container
             container_client = self.blob_service_client.get_container_client(self.container_name)
             
-            # Debug: elenca tutti i blob nel container
-            print("Elencando i blob nel container...")
+            # Elenca tutti i blob nel container
             all_blobs = list(container_client.list_blobs())
-            print(f"Numero totale di blob trovati: {len(all_blobs)}")
-            
-            # Debug: mostra i primi 10 blob
-            for i, blob in enumerate(all_blobs[:10]):
-                print(f"Blob {i+1}: {blob.name}")
             
             # Estrai i nomi delle cartelle di certificazione
             certifications = set()
@@ -194,8 +178,6 @@ class CertificationQuizApp:
                 parts = blob.name.split('/')
                 if len(parts) > 1 and parts[0] == "data":
                     certifications.add(parts[1])
-            
-            print(f"Certificazioni trovate: {certifications}")
             
             # Verifica quali certificazioni hanno un file database.xlsx
             valid_certifications = []
@@ -205,13 +187,11 @@ class CertificationQuizApp:
                     blob_client = container_client.get_blob_client(database_path)
                     properties = blob_client.get_blob_properties()
                     valid_certifications.append(cert)
-                    print(f"Certificazione valida trovata: {cert}")
                 except:
-                    print(f"Certificazione senza database.xlsx: {cert}")
+                    pass
             
             return valid_certifications
         except Exception as e:
-            print(f"Errore nel recupero delle certificazioni da Azure: {e}")
             import traceback
             traceback.print_exc()
             return []
@@ -236,7 +216,6 @@ class CertificationQuizApp:
             
             return certifications
         except requests.RequestException as e:
-            print(f"Errore nel recupero delle certificazioni remote: {e}")
             return []
 
     def _get_local_certifications(self, data_dir):
@@ -264,7 +243,6 @@ class CertificationQuizApp:
             try:
                 # Percorso del file nel blob storage
                 blob_path = f"data/{selected_cert}/database.xlsx"
-                print(f"Caricamento database da Azure: {blob_path}")
                 
                 # Ottieni il client del blob
                 container_client = self.blob_service_client.get_container_client(self.container_name)
@@ -273,13 +251,10 @@ class CertificationQuizApp:
                 # Scarica il contenuto del blob
                 download_stream = blob_client.download_blob()
                 content = download_stream.readall()
-                print(f"Database scaricato, dimensione: {len(content)} bytes")
                 
                 # Leggi il dataframe dal contenuto scaricato
                 self.df = pd.read_excel(io.BytesIO(content))
-                print(f"Dataframe caricato con {len(self.df)} righe")
             except Exception as e:
-                print(f"Errore nel caricamento del database da Azure: {e}")
                 import traceback
                 traceback.print_exc()
                 self.df = pd.DataFrame()
@@ -288,7 +263,6 @@ class CertificationQuizApp:
                 file_path = resource_path(os.path.join(self.data_path, selected_cert, "database.xlsx"))
                 self.df = pd.read_excel(file_path)
             except Exception as e:
-                print(f"Errore nel caricamento del database remoto: {e}")
                 self.df = pd.DataFrame()
         else:
             file_path = resource_path(os.path.join(self.data_path, selected_cert, "database.xlsx"))
@@ -330,14 +304,12 @@ class CertificationQuizApp:
         try:
             # Definisci il prefisso per la ricerca del blob
             prefix = f"data/{selected_cert}/Domande/Topic{topic}/"
-            print(f"Cercando immagine con prefisso: {prefix} per la domanda numero {number}")
             
             # Ottieni il client del container
             container_client = self.blob_service_client.get_container_client(self.container_name)
             
             # Lista tutti i blob con il prefisso dato
             blobs = list(container_client.list_blobs(name_starts_with=prefix))
-            print(f"Blob trovati con prefisso '{prefix}': {len(blobs)}")
             
             # Cerca un blob che corrisponda al numero della domanda
             matching_blob = None
@@ -345,7 +317,6 @@ class CertificationQuizApp:
                 file_name = blob.name.split('/')[-1]
                 if file_name.startswith(f"{int(number)}."):
                     matching_blob = blob
-                    print(f"Trovata immagine corrispondente: {blob.name}")
                     break
             
             if matching_blob:
@@ -353,13 +324,10 @@ class CertificationQuizApp:
                 blob_client = container_client.get_blob_client(matching_blob.name)
                 download_stream = blob_client.download_blob()
                 content = download_stream.readall()
-                print(f"Immagine scaricata, dimensione: {len(content)} bytes")
                 return io.BytesIO(content)
             else:
-                print(f"Nessuna immagine trovata per la domanda {number}")
                 return None
         except Exception as e:
-            print(f"Errore nel recupero dell'immagine da Azure: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -382,7 +350,6 @@ class CertificationQuizApp:
                     return io.BytesIO(img_response.content)
             return None
         except requests.RequestException as e:
-            print(f"Errore nel recupero dell'immagine remota: {e}")
             return None
 
     def _find_local_image(self, image_dir, number):
