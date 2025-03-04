@@ -71,37 +71,134 @@ Per una serie di affermazioni da valutare come vere o false, utilizzare "Y" per 
 
 -----
 
+# Aggiungere domande al database
 
-# Aggiungere domande al database [da completare]
-no excel aperto, spiegare domande multi-risposta
+## Struttura della banca dati su Blob Storage
 
-- Nome file Excel: "database.xlsx"
-- Nome cartella con screenshot domande: "Domande"
-- Nome screenshot domanda ```<numeroDomanda.formato>```
+Il TRR Tool Certificazioni utilizza Azure Blob Storage per memorizzare la banca dati delle domande, organizzata secondo la seguente struttura gerarchica:
 
 <div style="white-space: pre-wrap;">
-Tool_Certificazioni/
- ├─> data/
- │      ├─> DP-600/
- │      │      ├─> database.xlsx
- │      │      └─> Domande/
- │      │              └─> Topic1/ → 1.png, 2.jpeg, ...
- │      │
- │      ├─> DP-700/
- │      │      ├─> database.xlsx
- │      │      └─> Domande/
- │      │              ├─> Topic1/ → 1.png, 2.jpeg, ...
- │      │              └─> Topic2/ → 1.png, 2.jpeg, ...
- │      │
- │      └─> ... (altre certificazioni)
- │
- ├─> static/
- │      └─> icon.ico
- │
- ├─> main.py
- ├─> requirements.txt
- └─> config.json
+materiale-certificazioni (container)
+└── data
+    ├── DP-700
+    │   ├── database.xlsx
+    │   ├── config.json (facoltativo)
+    │   └── Domande
+    │       ├── Topic1
+    │       │   ├── 1.png
+    │       │   ├── 2.png
+    │       │   └── ...
+    │       ├── Topic2
+    │       │   ├── 1.png
+    │       │   └── ...
+    │       └── ...
+    ├── DP-600
+    │   ├── database.xlsx
+    │   ├── config.json (facoltativo)
+    │   └── Domande
+    │       └── ...
+    └── ...
 </div>
+
+### Spiegazione della struttura
+
+1. Il container principale è `materiale-certificazioni`
+2. All'interno del container è presente una cartella `data` che contiene tutte le certificazioni
+3. Per ogni certificazione (es. DP-700, AZ-104) è presente:
+   - Un file `database.xlsx` contenente le domande e le risposte
+   - Un file `config.json` (facoltativo) per configurare l'Agent AI specifico della certificazione
+   - Una cartella `Domande` contenente le immagini delle domande, organizzate per Topic
+
+### File config.json (facoltativo)
+
+Questo file permette di specificare un Agent AI dedicato per una certificazione. La sua struttura è molto semplice:
+
+```
+{
+  "ai_agent_url": "https://neurons.reply.com/chat?agentId=ID_SPECIFICO_DELLA_CERTIFICAZIONE"
+}
+```
+
+Se questo file non è presente, l'applicazione utilizzerà l'Agent AI predefinito configurato nel file `config.json` principale.
+
+## Struttura del file database.xlsx
+
+Il file `database.xlsx` contiene tutte le domande relative a una certificazione. Ogni riga rappresenta una domanda e deve contenere le seguenti colonne:
+
+<table>
+  <thead>
+    <tr>
+      <th>Colonna</th>
+      <th>Descrizione</th>
+      <th>Obbligatoria</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Tipologia</td>
+      <td>Tipo di domanda (es. risposta multipla)</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>Topic</td>
+      <td>Numero del topic a cui appartiene la domanda</td>
+      <td>Sì</td>
+    </tr>
+    <tr>
+      <td>Numero</td>
+      <td>Identificativo numerico della domanda, deve corrispondere al nome dell'immagine nella cartella delle immagini</td>
+      <td>Sì</td>
+    </tr>
+    <tr>
+      <td>Risposta Esatta</td>
+      <td>La risposta corretta alla domanda (vedi il capitolo "Utilizzare TRR Tool Certificazioni" per i formati)</td>
+      <td>Sì</td>
+    </tr>
+    <tr>
+      <td>Commento</td>
+      <td>Spiegazione sintetica della risposta corretta</td>
+      <td>Sì</td>
+    </tr>
+    <tr>
+      <td>Link</td>
+      <td>URL alla fonte originale della domanda (es. ExamTopics)</td>
+      <td>No</td>
+    </tr>
+  </tbody>
+</table>
+
+### Importante: Correlazione tra Numero e immagini
+
+Il campo `Numero` è fondamentale perché stabilisce la corrispondenza tra la riga nel database e l'immagine della domanda. Per ogni domanda nel file Excel con `Numero = X` e `Topic = Y`, deve esistere un'immagine denominata `X.png` (o altro formato) nella cartella `Domande/TopicY`.
+
+Ad esempio:
+- Se nel database c'è una domanda con `Topic = 1` e `Numero = 3`
+- Deve esistere un'immagine chiamata `3.png` nella cartella `Domande/Topic1`
+
+## Aggiungere una nuova certificazione
+
+Per aggiungere una nuova certificazione, seguire questi passaggi:
+
+1. Creare una nuova cartella con il nome della certificazione all'interno della cartella `data`
+2. Creare il file `database.xlsx` con le colonne sopra descritte
+3. Creare la struttura delle cartelle `Domande/TopicX` per ogni topic
+4. Aggiungere le immagini delle domande nelle rispettive cartelle dei topic
+5. Opzionalmente, aggiungere un file `config.json` se si desidera utilizzare un Agent AI specifico
+
+## Aggiungere nuove domande a una certificazione esistente
+
+Per aggiungere nuove domande a una certificazione esistente:
+
+1. Aggiungere una nuova riga al file `database.xlsx` con tutte le informazioni richieste
+2. Assicurarsi che il `Numero` assegnato alla domanda non sia già utilizzato all'interno dello stesso Topic
+3. Salvare l'immagine della domanda nella cartella del Topic corrispondente, nominandola con lo stesso numero specificato nel database
+
+## Suggerimenti per la manutenzione
+
+- Mantenere le immagini delle domande di dimensioni ragionevoli per evitare tempi di caricamento eccessivi
+- Utilizzare nomi descrittivi per i file di immagine (es. `1.png`, `2.jpg`) per facilitare l'associazione con le domande nel database
+- Verificare periodicamente che tutte le domande nel database abbiano un'immagine corrispondente e viceversa
+- Assicurarsi che i link alle fonti originali delle domande siano ancora validi
 
 -----
 
@@ -119,19 +216,19 @@ TRR Tool Certificazioni è un'applicazione Streamlit progettata per aiutare gli 
 ## Installazione
 
 1. **Clonare il repository o scaricare il progetto**
-   ```sh
-   git clone <URL_REPOSITORY>
+   ```
+   git clone https://github.com/bianchimario/Tool_Certificazioni_streamlit
    cd Tool_Certificazioni
    ```
 
 2. **Creare e attivare l'ambiente virtuale**
    - Su Windows:
-     ```sh
+     ```
      python -m venv .venv
      .venv\Scripts\activate
      ```
    - Su macOS/Linux:
-     ```sh
+     ```
      python3 -m venv .venv
      source .venv/bin/activate
      ```
@@ -159,7 +256,7 @@ TRR Tool Certificazioni è un'applicazione Streamlit progettata per aiutare gli 
 Il file `config.json` contiene le seguenti chiavi:
 - `data_path`: Percorso alla directory dei dati (locale o URL remoto)
 - `guide_path`: URL della guida all'utilizzo
-- `ai_agent_url`: URL dell'Agent AI per assistenza
+- `default_ai_agent_url`: URL dell'Agent AI di default per assistenza
 
 
 ## Esecuzione
@@ -172,7 +269,3 @@ streamlit run main.py
         python -m streamlit run main.py
         ```
 
-
-## Note
-- Assicurarsi che tutti i file di dati e configurazione siano presenti e accessibili.
-- Per l'utilizzo con dati remoti, verificare che gli URL nel `config.json` siano corretti e accessibili.
