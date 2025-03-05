@@ -631,10 +631,16 @@ def main():
     else:
         col1, col2 = st.columns([3,1], gap="large")
         
+
         with col1:
             if st.session_state.current_question is not None:
                 # Ottieni il link della domanda corrente
                 link_url = st.session_state.current_question.get('Link', None)
+                
+                # Aggiungi spazio sopra il contenuto - AGGIUNGI QUESTE RIGHE
+                st.write("")  # Opzione 1: aggiunge una riga vuota
+                st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)  # Opzione 2: spazio fisso di 20px
+                # Puoi regolare l'altezza (20px) al valore che preferisci
                 
                 # Verifica se c'è un link ExamTopics valido
                 if pd.notna(link_url) and "examtopics.com" in link_url:
