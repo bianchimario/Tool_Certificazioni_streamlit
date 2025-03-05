@@ -55,13 +55,13 @@ def load_markdown_content(file_path):
 
 
 @st.cache_data(ttl=3600)  # Cache per un'ora
-def extract_examtopics_content(url, selector=".discussion-header-container"):
+def extract_external_content(url, selector=".discussion-header-container"):
     """
-    Estrae il contenuto di una discussione ExamTopics utilizzando il selettore specificato.
+    Estrae il contenuto di una discussione utilizzando il selettore specificato.
     Rende il contenuto non cliccabile ma scrollabile.
     
     Args:
-        url (str): URL della discussione su ExamTopics
+        url (str): URL della discussione
         selector (str): Selettore CSS per estrarre il contenuto specifico
         
     Returns:
@@ -390,85 +390,6 @@ class CertificationQuizApp:
             self.filtered_df = self.df[self.df['Topic'] == topic_number]
         self.seen_questions.clear()
 
-    def find_image_file(self, selected_cert, topic, number):
-        """
-        Trova il file immagine associato a una domanda specifica.
-        """
-        if self.blob_service_client and self.container_name:
-            return self._find_azure_image(selected_cert, topic, number)
-        
-        image_dir = resource_path(os.path.join(self.data_path, selected_cert, "Domande", f"Topic{topic}"))
-        if image_dir.startswith(('http://', 'https://')):
-            return self._find_remote_image(image_dir, number)
-        else:
-            return self._find_local_image(image_dir, number)
-
-    def _find_azure_image(self, selected_cert, topic, number):
-        """
-        Trova un'immagine in Azure Blob Storage per una domanda specifica.
-        """
-        try:
-            # Definisci il prefisso per la ricerca del blob
-            prefix = f"data/{selected_cert}/Domande/Topic{topic}/"
-            
-            # Ottieni il client del container
-            container_client = self.blob_service_client.get_container_client(self.container_name)
-            
-            # Lista tutti i blob con il prefisso dato
-            blobs = list(container_client.list_blobs(name_starts_with=prefix))
-            
-            # Cerca un blob che corrisponda al numero della domanda
-            matching_blob = None
-            for blob in blobs:
-                file_name = blob.name.split('/')[-1]
-                if file_name.startswith(f"{int(number)}."):
-                    matching_blob = blob
-                    break
-            
-            if matching_blob:
-                # Scarica il blob
-                blob_client = container_client.get_blob_client(matching_blob.name)
-                download_stream = blob_client.download_blob()
-                content = download_stream.readall()
-                return io.BytesIO(content)
-            else:
-                return None
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            return None
-
-    def _find_remote_image(self, url, number):
-        """
-        Cerca un'immagine remota per una domanda specifica.
-        """
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
-            for link in soup.find_all('a'):
-                href = link.get('href')
-                if href and href.startswith(f"{int(number)}."):
-                    image_url = urljoin(url, href)
-                    # Scarica l'immagine
-                    img_response = requests.get(image_url)
-                    img_response.raise_for_status()
-                    return io.BytesIO(img_response.content)
-            return None
-        except requests.RequestException as e:
-            return None
-
-    def _find_local_image(self, image_dir, number):
-        """
-        Cerca un'immagine locale per una domanda specifica.
-        """
-        if not os.path.exists(image_dir):
-            return None
-        for file in os.listdir(image_dir):
-            if file.startswith(f"{int(number)}."):
-                return os.path.join(image_dir, file)
-        return None
-
     def get_random_question(self):
         """
         Seleziona una domanda casuale tra quelle non ancora viste.
@@ -508,21 +429,22 @@ class CertificationQuizApp:
     def find_question_content(self, link_url):
         """
         Cerca il contenuto web associato al link della domanda.
-        Restituisce None se il link non esiste o non è un link di ExamTopics.
+        Restituisce None se il link non esiste o non è un link della fonte esterna.
         
         Args:
-            link_url: URL della domanda (tipicamente da ExamTopics)
+            link_url: URL della domanda
             
         Returns:
             str: HTML formattato per il contenuto della domanda
-            None: Se il link non esiste o non è di ExamTopics
+            None: Se il link non esiste o non è di una fonte supportata
         """
         if pd.isna(link_url) or not link_url:
             return None
             
-        # Verifica se è un link ExamTopics
-        if "examtopics.com" in link_url:
-            return extract_examtopics_content(link_url)
+        # Verifica se è un link della fonte esterna
+        domain = "examtopics.com"
+        if domain in link_url:
+            return extract_external_content(link_url)
             
         return None
 
@@ -631,34 +553,32 @@ def main():
     else:
         col1, col2 = st.columns([3,1], gap="large")
         
-
         with col1:
             if st.session_state.current_question is not None:
                 # Ottieni il link della domanda corrente
                 link_url = st.session_state.current_question.get('Link', None)
                 
-                # Aggiungi spazio sopra il contenuto - AGGIUNGI QUESTE RIGHE
-                st.write("")  # Opzione 1: aggiunge una riga vuota
-                st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)  # Opzione 2: spazio fisso di 20px
-                # Puoi regolare l'altezza (20px) al valore che preferisci
+                # Aggiungi spazio sopra il contenuto
+                st.write("")
+                st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
                 
-                # Verifica se c'è un link ExamTopics valido
-                if pd.notna(link_url) and "examtopics.com" in link_url:
+                # Verifica se c'è un link di fonte esterna valido
+                domain = "examtopics.com"
+                if pd.notna(link_url) and domain in link_url:
                     # Mostra un messaggio durante il caricamento del contenuto
-                    with st.spinner("Caricamento contenuto da ExamTopics..."):
+                    with st.spinner("Caricamento contenuto dalla fonte esterna..."):
                         web_content = app.find_question_content(link_url)
                     
                     if web_content:
-                        # Visualizza il contenuto web invece dell'immagine
+                        # Visualizza il contenuto web
                         st.components.v1.html(web_content, height=600, scrolling=True)
                     else:
-                        # Fallback alle immagini se il contenuto web non può essere estratto
-                        st.warning("Impossibile caricare il contenuto da ExamTopics. Caricamento dell'immagine...")
-                        _load_question_image(app, cert, st.session_state.current_question)
+                        # Notifica se il contenuto non può essere caricato
+                        st.warning("Impossibile caricare il contenuto dalla fonte esterna.")
                 else:
-                    # Carica l'immagine come al solito
-                    _load_question_image(app, cert, st.session_state.current_question)
-
+                    # Notifica che il link non è disponibile
+                    st.info("Contenuto non disponibile.")
+        
         with col2:
             st.markdown("### Statistiche Quiz")
             
@@ -708,38 +628,6 @@ def main():
                 agent_url = st.session_state.cert_config.get('ai_agent_url', config.get('default_ai_agent_url', ""))
                 # Modificato per usare st.markdown invece di st.write per garantire la compatibilità
                 st.markdown(f"Ancora dubbi? <a href='{agent_url}' target='_blank'>Chiedi all'Agent AI</a>", unsafe_allow_html=True)
-
-
-# Funzione ausiliaria per il caricamento delle immagini
-def _load_question_image(app, cert, question):
-    """
-    Carica e visualizza l'immagine associata alla domanda.
-    
-    Args:
-        app: L'istanza di CertificationQuizApp
-        cert: Il nome della certificazione
-        question: La domanda corrente
-    """
-
-# Mostra un messaggio durante il caricamento dell'immagine
-    with st.spinner("Caricamento immagine..."):
-        image_path = app.find_image_file(cert, question['Topic'], question['Numero'])
-    
-    if image_path:
-        try:
-            if isinstance(image_path, io.BytesIO):
-                image = Image.open(image_path)
-            else:
-                image = Image.open(image_path)
-            
-            # Centra l'immagine usando le colonne di Streamlit
-            left, center, right = st.columns([1,5,1])
-            with center:
-                st.image(image, use_container_width=True)
-        except Exception as e:
-            st.error(f"Errore nel caricamento dell'immagine: {e}")
-    else:
-        st.warning("Immagine non trovata per questa domanda")
 
 
 if __name__ == "__main__":
