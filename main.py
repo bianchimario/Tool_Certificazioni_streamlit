@@ -3,14 +3,11 @@ import pandas as pd
 from PIL import Image
 import os
 import sys
-import webbrowser
 import json
 import requests
-from urllib.parse import urljoin
-from bs4 import BeautifulSoup
 import markdown
 import io
-from azure.storage.blob import BlobServiceClient, ContainerSasPermissions
+from azure.storage.blob import BlobServiceClient
 
 
 def resource_path(relative_path):
@@ -34,7 +31,7 @@ def load_config():
     """
     with open(resource_path("config.json"), "r", encoding="utf-8") as file:
         return json.load(file)
-    
+
 
 def load_markdown_content(file_path):
     """
@@ -53,6 +50,106 @@ def load_markdown_content(file_path):
     return html
 
 
+def initialize_blob_cache(app):
+    """
+    Inizializza la cache dei blob scaricando tutti i blob necessari una sola volta.
+    """
+    if 'blob_cache' not in st.session_state:
+        try:
+            # Ottieni il client del container
+            container_client = app.blob_service_client.get_container_client(app.container_name)
+            
+            # Elenca tutti i blob nel container
+            st.session_state.all_blobs = list(container_client.list_blobs())
+            
+            # Crea una mappa dei blob per un accesso più efficiente
+            blob_map = {}
+            certifications = set()
+            
+            for blob in st.session_state.all_blobs:
+                blob_map[blob.name] = blob
+                
+                # Estrai le certificazioni
+                parts = blob.name.split('/')
+                if len(parts) > 1 and parts[0] == "data":
+                    certifications.add(parts[1])
+            
+            # Crea un dizionario per le certificazioni valide
+            valid_certifications = []
+            cert_configs = {}
+            cert_databases = {}
+            cert_images = {}
+            
+            for cert in certifications:
+                database_path = f"data/{cert}/database.xlsx"
+                
+                # Verifica se esiste il database della certificazione
+                if database_path in blob_map:
+                    valid_certifications.append(cert)
+                    
+                    # Carica la configurazione (se esiste)
+                    config_path = f"data/{cert}/config.json"
+                    if config_path in blob_map:
+                        blob_client = container_client.get_blob_client(config_path)
+                        download_stream = blob_client.download_blob()
+                        content = download_stream.readall()
+                        cert_configs[cert] = json.loads(content.decode('utf-8'))
+                    
+                    # Carica il database
+                    blob_client = container_client.get_blob_client(database_path)
+                    download_stream = blob_client.download_blob()
+                    content = download_stream.readall()
+                    df = pd.read_excel(io.BytesIO(content))
+                    cert_databases[cert] = df
+                    
+                    # Organizza le immagini per topic e numero
+                    cert_images[cert] = {}
+                    img_prefix = f"data/{cert}/Domande/"
+                    for blob in st.session_state.all_blobs:
+                        if blob.name.startswith(img_prefix):
+                            # Estrai topic e numero dall'immagine
+                            path_parts = blob.name.split('/')
+                            if len(path_parts) > 4 and path_parts[3].startswith("Topic"):
+                                topic = path_parts[3].replace("Topic", "")
+                                file_name = path_parts[4]
+                                
+                                # Estrai il numero dall'inizio del nome del file
+                                number_parts = file_name.split('.')
+                                if len(number_parts) >= 2:
+                                    try:
+                                        number = int(number_parts[0])
+                                        
+                                        # Aggiungi alla struttura delle immagini
+                                        if topic not in cert_images[cert]:
+                                            cert_images[cert][topic] = {}
+                                        
+                                        cert_images[cert][topic][number] = blob.name
+                                    except ValueError:
+                                        pass
+            
+            # Crea anche una cache delle immagini già scaricate
+            image_content_cache = {}
+            
+            # Salva tutto nella session_state
+            st.session_state.blob_cache = {
+                'valid_certifications': valid_certifications,
+                'cert_configs': cert_configs,
+                'cert_databases': cert_databases,
+                'cert_images': cert_images,
+                'blob_map': blob_map,
+                'image_content_cache': image_content_cache
+            }
+            
+            return True
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            st.error(f"Errore nell'inizializzazione della cache: {str(e)}")
+            return False
+    return True
+
+
+# Carica la configurazione una sola volta all'inizio
 config = load_config()
 
 
@@ -72,8 +169,6 @@ class CertificationQuizApp:
         # Inizializza il client Azure se necessario
         if self.data_path.startswith(('http://', 'https://')):
             self.blob_service_client = self._create_blob_service_client()
-            if not self.container_name:
-                self.container_name = self._extract_container_name()
         else:
             self.blob_service_client = None
             self.container_name = None
@@ -101,176 +196,95 @@ class CertificationQuizApp:
             traceback.print_exc()
             return None
 
-    def _extract_container_name(self):
-        """
-        Estrae il nome del container dall'URL della SAS.
-        """
-        try:
-            url_without_params = self.data_path.split('?')[0]
-            container_name = url_without_params.split('/')[-1]
-            return container_name
-        except Exception as e:
-            return None
-
     def load_cert_config(self, cert_name):
         """
-        Carica la configurazione specifica per una certificazione.
-        Se non trovata, usa i valori di default.
+        Carica la configurazione specifica per una certificazione dalla cache.
         """
         default_config = {
             "ai_agent_url": config.get('default_ai_agent_url', "")  # Usa quello globale come fallback
         }
         
         if self.blob_service_client and self.container_name:
-            try:
-                # Percorso del file di configurazione nel blob storage
-                config_path = f"data/{cert_name}/config.json"
-                
-                # Ottieni il client del container
-                container_client = self.blob_service_client.get_container_client(self.container_name)
-                blob_client = container_client.get_blob_client(config_path)
-                
+            if 'blob_cache' in st.session_state and cert_name in st.session_state.blob_cache['cert_configs']:
+                default_config.update(st.session_state.blob_cache['cert_configs'][cert_name])
+            else:
                 try:
-                    # Verifica se il blob esiste
-                    blob_client.get_blob_properties()
+                    # Percorso del file di configurazione nel blob storage
+                    config_path = f"data/{cert_name}/config.json"
                     
-                    # Scarica il contenuto del blob
-                    download_stream = blob_client.download_blob()
-                    content = download_stream.readall()
+                    # Ottieni il client del container
+                    container_client = self.blob_service_client.get_container_client(self.container_name)
+                    blob_client = container_client.get_blob_client(config_path)
                     
-                    # Carica il JSON
-                    cert_config = json.loads(content.decode('utf-8'))
-                    
-                    # Aggiorna il dizionario di default con i valori trovati
-                    default_config.update(cert_config)
-                except Exception as e:
+                    try:
+                        # Verifica se il blob esiste
+                        blob_client.get_blob_properties()
+                        
+                        # Scarica il contenuto del blob
+                        download_stream = blob_client.download_blob()
+                        content = download_stream.readall()
+                        
+                        # Carica il JSON
+                        cert_config = json.loads(content.decode('utf-8'))
+                        
+                        # Aggiorna il dizionario di default con i valori trovati
+                        default_config.update(cert_config)
+                    except Exception:
+                        pass
+                except Exception:
                     pass
-            except Exception as e:
-                pass
         
         return default_config
 
     def get_available_certifications(self):
         """
-        Recupera l'elenco delle certificazioni disponibili, sia da una fonte locale che remota.
+        Recupera l'elenco delle certificazioni disponibili dalla cache.
         """
-        if self.blob_service_client and self.container_name:
-            return self._get_azure_certifications()
-        elif self.data_path.startswith(('http://', 'https://')):
-            return self._get_remote_certifications(self.data_path)
-        else:
-            return self._get_local_certifications(self.data_path)
-
-    def _get_azure_certifications(self):
-        """
-        Recupera l'elenco delle certificazioni da Azure Blob Storage.
-        """
-        try:
-            # Ottieni il client del container
-            container_client = self.blob_service_client.get_container_client(self.container_name)
-            
-            # Elenca tutti i blob nel container
-            all_blobs = list(container_client.list_blobs())
-            
-            # Estrai i nomi delle cartelle di certificazione
-            certifications = set()
-            for blob in all_blobs:
-                parts = blob.name.split('/')
-                if len(parts) > 1 and parts[0] == "data":
-                    certifications.add(parts[1])
-            
-            # Verifica quali certificazioni hanno un file database.xlsx
-            valid_certifications = []
-            for cert in certifications:
-                database_path = f"data/{cert}/database.xlsx"
-                try:
-                    blob_client = container_client.get_blob_client(database_path)
-                    properties = blob_client.get_blob_properties()
-                    valid_certifications.append(cert)
-                except:
-                    pass
-            
-            return valid_certifications
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
+        if not self.blob_service_client or not self.container_name:
             return []
-
-    def _get_remote_certifications(self, url):
-        """
-        Recupera l'elenco delle certificazioni da una fonte remota.
-        """
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
             
-            certifications = []
-            for link in soup.find_all('a'):
-                href = link.get('href')
-                if href and href.endswith('/'):
-                    cert_name = href.rstrip('/')
-                    database_url = urljoin(url, f"{cert_name}/database.xlsx")
-                    if self._remote_file_exists(database_url):
-                        certifications.append(cert_name)
-            
-            return certifications
-        except requests.RequestException as e:
-            return []
-
-    def _get_local_certifications(self, data_dir):
-        """
-        Recupera l'elenco delle certificazioni da una directory locale.
-        """
-        return [d for d in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, d)) and 
-                os.path.exists(os.path.join(data_dir, d, "database.xlsx"))]
-
-    def _remote_file_exists(self, url):
-        """
-        Verifica se un file remoto esiste utilizzando una richiesta HEAD.
-        """
-        try:
-            response = requests.head(url)
-            return response.status_code == 200
-        except requests.RequestException:
-            return False
+        if 'blob_cache' in st.session_state:
+            return st.session_state.blob_cache['valid_certifications']
+        
+        # Se la cache non è disponibile, restituisci una lista vuota
+        # oppure visualizza un messaggio di errore
+        st.error("Cache non inizializzata correttamente. Riavvia l'applicazione.")
+        return []
 
     def load_certification(self, selected_cert):
         """
-        Carica i dati per la certificazione selezionata da un file Excel locale o remoto.
+        Carica i dati per la certificazione selezionata dalla cache o dal file Excel.
         """
         if self.blob_service_client and self.container_name:
-            try:
-                # Percorso del file nel blob storage
-                blob_path = f"data/{selected_cert}/database.xlsx"
-                
-                # Ottieni il client del blob
-                container_client = self.blob_service_client.get_container_client(self.container_name)
-                blob_client = container_client.get_blob_client(blob_path)
-                
-                # Scarica il contenuto del blob
-                download_stream = blob_client.download_blob()
-                content = download_stream.readall()
-                
-                # Leggi il dataframe dal contenuto scaricato
-                self.df = pd.read_excel(io.BytesIO(content))
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                self.df = pd.DataFrame()
-        elif resource_path(os.path.join(self.data_path, selected_cert, "database.xlsx")).startswith(('http://', 'https://')):
-            try:
-                file_path = resource_path(os.path.join(self.data_path, selected_cert, "database.xlsx"))
-                self.df = pd.read_excel(file_path)
-            except Exception as e:
-                self.df = pd.DataFrame()
+            if 'blob_cache' in st.session_state and selected_cert in st.session_state.blob_cache['cert_databases']:
+                self.df = st.session_state.blob_cache['cert_databases'][selected_cert].copy()
+            else:
+                try:
+                    # Percorso del file nel blob storage
+                    blob_path = f"data/{selected_cert}/database.xlsx"
+                    
+                    # Ottieni il client del blob
+                    container_client = self.blob_service_client.get_container_client(self.container_name)
+                    blob_client = container_client.get_blob_client(blob_path)
+                    
+                    # Scarica il contenuto del blob
+                    download_stream = blob_client.download_blob()
+                    content = download_stream.readall()
+                    
+                    # Leggi il dataframe dal contenuto scaricato
+                    self.df = pd.read_excel(io.BytesIO(content))
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    self.df = pd.DataFrame()
         else:
-            file_path = resource_path(os.path.join(self.data_path, selected_cert, "database.xlsx"))
-            self.df = pd.read_excel(file_path)
+            self.df = pd.DataFrame()
         
-        self.df = self.df.dropna(how='all')
-        self.df['Topic'] = pd.to_numeric(self.df['Topic'], errors='coerce').fillna(0).astype(int)
-        self.df['Numero'] = pd.to_numeric(self.df['Numero'], errors='coerce').fillna(0).astype(int)
+        if not self.df.empty:
+            self.df = self.df.dropna(how='all')
+            self.df['Topic'] = pd.to_numeric(self.df['Topic'], errors='coerce').fillna(0).astype(int)
+            self.df['Numero'] = pd.to_numeric(self.df['Numero'], errors='coerce').fillna(0).astype(int)
+        
         return sorted(self.df['Topic'].unique())
 
     def filter_questions(self, selected_topic):
@@ -288,80 +302,78 @@ class CertificationQuizApp:
         """
         Trova il file immagine associato a una domanda specifica.
         """
-        if self.blob_service_client and self.container_name:
-            return self._find_azure_image(selected_cert, topic, number)
+        if not self.blob_service_client or not self.container_name:
+            return None
+            
+        # Crea una chiave univoca per questa immagine
+        image_key = f"{selected_cert}_{topic}_{number}"
         
-        image_dir = resource_path(os.path.join(self.data_path, selected_cert, "Domande", f"Topic{topic}"))
-        if image_dir.startswith(('http://', 'https://')):
-            return self._find_remote_image(image_dir, number)
-        else:
-            return self._find_local_image(image_dir, number)
-
-    def _find_azure_image(self, selected_cert, topic, number):
-        """
-        Trova un'immagine in Azure Blob Storage per una domanda specifica.
-        """
-        try:
-            # Definisci il prefisso per la ricerca del blob
-            prefix = f"data/{selected_cert}/Domande/Topic{topic}/"
+        # Verifica se l'immagine è già nella cache delle immagini
+        if ('blob_cache' in st.session_state and 
+            image_key in st.session_state.blob_cache['image_content_cache']):
+            # Restituisci l'immagine dalla cache
+            return io.BytesIO(st.session_state.blob_cache['image_content_cache'][image_key])
+        
+        # Verifica se abbiamo la mappa delle immagini in cache
+        if ('blob_cache' in st.session_state and 
+            selected_cert in st.session_state.blob_cache['cert_images'] and
+            str(topic) in st.session_state.blob_cache['cert_images'][selected_cert] and
+            int(number) in st.session_state.blob_cache['cert_images'][selected_cert][str(topic)]):
             
-            # Ottieni il client del container
-            container_client = self.blob_service_client.get_container_client(self.container_name)
+            # Ottieni il nome del blob dalla cache
+            blob_name = st.session_state.blob_cache['cert_images'][selected_cert][str(topic)][int(number)]
             
-            # Lista tutti i blob con il prefisso dato
-            blobs = list(container_client.list_blobs(name_starts_with=prefix))
-            
-            # Cerca un blob che corrisponda al numero della domanda
-            matching_blob = None
-            for blob in blobs:
-                file_name = blob.name.split('/')[-1]
-                if file_name.startswith(f"{int(number)}."):
-                    matching_blob = blob
-                    break
-            
-            if matching_blob:
+            try:
                 # Scarica il blob
-                blob_client = container_client.get_blob_client(matching_blob.name)
+                container_client = self.blob_service_client.get_container_client(self.container_name)
+                blob_client = container_client.get_blob_client(blob_name)
                 download_stream = blob_client.download_blob()
                 content = download_stream.readall()
+                
+                # Salva nella cache delle immagini
+                if 'blob_cache' in st.session_state:
+                    st.session_state.blob_cache['image_content_cache'][image_key] = content
+                
                 return io.BytesIO(content)
-            else:
+            except Exception:
+                import traceback
+                traceback.print_exc()
                 return None
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            return None
-
-    def _find_remote_image(self, url, number):
-        """
-        Cerca un'immagine remota per una domanda specifica.
-        """
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
-            for link in soup.find_all('a'):
-                href = link.get('href')
-                if href and href.startswith(f"{int(number)}."):
-                    image_url = urljoin(url, href)
-                    # Scarica l'immagine
-                    img_response = requests.get(image_url)
-                    img_response.raise_for_status()
-                    return io.BytesIO(img_response.content)
-            return None
-        except requests.RequestException as e:
-            return None
-
-    def _find_local_image(self, image_dir, number):
-        """
-        Cerca un'immagine locale per una domanda specifica.
-        """
-        if not os.path.exists(image_dir):
-            return None
-        for file in os.listdir(image_dir):
-            if file.startswith(f"{int(number)}."):
-                return os.path.join(image_dir, file)
-        return None
+        else:
+            # Se non abbiamo la cache o l'immagine non è in cache, usa il metodo originale
+            try:
+                # Definisci il prefisso per la ricerca del blob
+                prefix = f"data/{selected_cert}/Domande/Topic{topic}/"
+                
+                # Ottieni il client del container
+                container_client = self.blob_service_client.get_container_client(self.container_name)
+                
+                # Lista tutti i blob con il prefisso dato
+                blobs = list(container_client.list_blobs(name_starts_with=prefix))
+                
+                # Cerca un blob che corrisponda al numero della domanda
+                matching_blob = None
+                for blob in blobs:
+                    file_name = blob.name.split('/')[-1]
+                    if file_name.startswith(f"{int(number)}."):
+                        matching_blob = blob
+                        break
+                
+                if matching_blob:
+                    # Scarica il blob
+                    blob_client = container_client.get_blob_client(matching_blob.name)
+                    download_stream = blob_client.download_blob()
+                    content = download_stream.readall()
+                    
+                    # Salva nella cache delle immagini
+                    if 'blob_cache' in st.session_state:
+                        st.session_state.blob_cache['image_content_cache'][image_key] = content
+                    
+                    return io.BytesIO(content)
+                else:
+                    return None
+            except Exception:
+                return None
 
     def get_random_question(self):
         """
@@ -407,11 +419,18 @@ def main():
     """
     st.set_page_config(page_title="TRR Tool Certificazioni", layout="wide", page_icon=resource_path("static/icon.ico"))
     
-    config = load_config()
+    # Non richiamare load_config() qui, usa la variabile globale config
     
     if 'app' not in st.session_state:
         st.session_state.app = CertificationQuizApp(config)
     app = st.session_state.app
+    
+    # Inizializza la cache dei blob all'avvio
+    if app.blob_service_client and app.container_name and 'blob_cache' not in st.session_state:
+        with st.spinner("Inizializzazione della cache dei blob... Questo potrebbe richiedere qualche minuto."):
+            cache_initialized = initialize_blob_cache(app)
+            if not cache_initialized:
+                st.error("Impossibile inizializzare la cache dei blob. L'applicazione potrebbe funzionare più lentamente.")
 
     if 'current_question' not in st.session_state:
         st.session_state.current_question = None
