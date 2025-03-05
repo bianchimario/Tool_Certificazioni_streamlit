@@ -517,6 +517,9 @@ def main():
             </a>
             """, unsafe_allow_html=True)
 
+    # Aggiungi spazio verticale tra i controlli di selezione e il contenuto principale
+    st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
+
     if st.session_state.show_guide:
         guide_content = load_markdown_content(config['guide_path'])
         st.markdown(guide_content, unsafe_allow_html=True)
