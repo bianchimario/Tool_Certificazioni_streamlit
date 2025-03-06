@@ -540,8 +540,7 @@ def main():
                             image = Image.open(image_path)
                         
                         # Centra l'immagine usando le colonne di Streamlit
-                        left, center, right = st.columns([1,5,1])
-                        with center:
+                        with st.container():
                             st.image(image, use_container_width=True)
                     except Exception as e:
                         st.error(f"Errore nel caricamento dell'immagine: {e}")
