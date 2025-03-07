@@ -457,13 +457,31 @@ def main():
             available_certs = app.get_available_certifications()
             if not available_certs:
                 st.error("Nessuna certificazione trovata. Controlla la configurazione del blob storage.")
-            cert = st.selectbox("Seleziona Certificazione:", available_certs if available_certs else ["Nessuna certificazione disponibile"])
+                cert = None
+            else:
+                # Aggiungiamo un'opzione vuota all'inizio della lista
+                cert_options = [""] + available_certs
+                selected_index = 0  # Imposta l'indice di default a 0 (opzione vuota)
+                
+                # Se già c'è una selezione esistente, trova il suo indice
+                if st.session_state.current_cert in available_certs:
+                    selected_index = cert_options.index(st.session_state.current_cert)
+                
+                cert = st.selectbox(
+                    "Seleziona Certificazione:", 
+                    cert_options,
+                    index=selected_index,
+                    format_func=lambda x: "Seleziona una certificazione" if x == "" else x
+                )
         
-        if cert and cert != "Nessuna certificazione disponibile":
+        # Visualizza i topic solo se c'è una certificazione selezionata
+        topic = None
+        if cert:
             if cert != st.session_state.current_cert:
                 app.reset_score()
                 st.session_state.current_cert = cert
                 st.session_state.current_topic = None
+                st.session_state.current_question = None  # Reset della domanda corrente
                 
                 # Carica la configurazione specifica della certificazione
                 st.session_state.cert_config = app.load_cert_config(cert)
@@ -523,6 +541,22 @@ def main():
     if st.session_state.show_guide:
         guide_content = load_markdown_content(config['guide_path'])
         st.markdown(guide_content, unsafe_allow_html=True)
+    elif not cert or cert == "":
+        # Mostra un messaggio informativo quando non c'è una certificazione selezionata
+        st.info("👆 Seleziona una certificazione per iniziare a esercitarti.")
+        
+        # Aggiungi ulteriori informazioni o suggerimenti
+        st.markdown("""
+        ### Come utilizzare TRR Tool Certificazioni
+        
+        1. Seleziona una certificazione dal menu a tendina in alto a sinistra
+        2. Scegli un topic specifico o seleziona "Tutti" per esercitarti su tutte le domande
+        3. Inserisci la tua risposta nel campo apposito a destra
+        4. Clicca su "Invia" per verificare la risposta
+        5. Clicca su "Prossima" per passare alla domanda successiva
+        
+        Per informazioni più dettagliate, clicca su "Guida all'utilizzo" in alto a destra.
+        """)
     else:
         col1, col2 = st.columns([3,1], gap="large")
         
