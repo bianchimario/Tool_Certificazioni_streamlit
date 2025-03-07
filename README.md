@@ -30,8 +30,11 @@ Per domande che richiedono di ordinare degli elementi, inserire le lettere nell'
 - Se la prima operazione da eseguire è in seconda posizione, mettere B come prima lettera della risposta.
 
 ### 5. Domande Vero/Falso (True/False)
-Per una serie di affermazioni da valutare come vere o false, utilizzare "Y" per le affermazioni vere e "N" per quelle false:
+Per una serie di affermazioni da valutare come vere o false, utilizzare "T" per le affermazioni vere e "F" per quelle false:
 - Esempio: "TFTF" significa che la prima affermazione è vera (T), la seconda è falsa (F), la terza è vera (T) e la quarta è falsa (F).
+
+### 6. Domande Sì/No (Yes/No)
+Stessa logica del punto precedente, ma utilizzare "Y" per Yes e "N" per No.
 
 ## Esempi pratici
 
@@ -80,7 +83,7 @@ Il TRR Tool Certificazioni utilizza Azure Blob Storage per memorizzare la banca 
 <div style="white-space: pre-wrap;">
 materiale-certificazioni (container)
 └── data
-    ├── DP-700
+    ├── Microsoft DP-700
     │   ├── database.xlsx
     │   ├── config.json (facoltativo)
     │   └── Domande
@@ -92,7 +95,7 @@ materiale-certificazioni (container)
     │       │   ├── 1.png
     │       │   └── ...
     │       └── ...
-    ├── DP-600
+    ├── Microsoft DP-600
     │   ├── database.xlsx
     │   ├── config.json (facoltativo)
     │   └── Domande
